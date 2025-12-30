@@ -1,0 +1,68 @@
+{
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/index.d.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "src",
+    "lib",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__"
+  ],
+  "scripts": {
+    "build": "bob build",
+    "prepare": "bob build",
+     "format": "prettier --write \"./**/*.{js,css,md,tsx,ts}\""
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*",
+    "react-native-gesture-handler": "*",
+    "react-native-reanimated": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-native": "^0.73.0",
+    "react-native-builder-bob": "^0.18.3",
+    "react-native-gesture-handler": "^2.30.0",
+    "react-native-reanimated": "^4.2.1",
+    "typescript": "^5.9.3"
+  },
+  "name": "react-native-swappable-grid",
+  "version": "1.0.0",
+  "description": "A React Native component for creating draggable, swappable grid layouts with reordering, delete functionality, and smooth animations",
+  "keywords": [
+    "react-native",
+    "grid",
+    "draggable",
+    "swappable",
+    "reorder",
+    "drag-and-drop",
+    "gesture",
+    "layout"
+  ],
+  "author": "William Danielsson",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WilliamDanielsson/react-native-swappable-grid"
+  },
+  "type": "commonjs",
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      "commonjs",
+      "module",
+      "typescript"
+    ]
+  },
+  "eslintIgnore": [
+    "node_modules/",
+    "lib/"
+  ],
+  "dependencies": {
+    "prettier": "^3.7.4"
+  }
+}
