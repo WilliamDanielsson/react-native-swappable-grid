@@ -1,2 +1,4 @@
 node_modules
 lib
+react-native-swappable-grid-*.tgz
+yarn.lock

@@ -237,18 +237,29 @@ export const PanWithLongPress = (props: PanProps & { longPressMs: number }) => {
       // Check if item was dropped into delete component
       if (deleteComponentPosition?.value && deleteItem) {
         const deletePos = deleteComponentPosition.value;
-        const itemCenterX = p.x.value + itemWidth / 2;
-        // Account for scroll offset when checking Y position
-        const itemCenterY = p.y.value + itemHeight / 2;
 
-        // Check if item center is within delete component bounds
-        // Note: positions are relative to container, so no scroll offset needed
-        if (
-          itemCenterX >= deletePos.x &&
-          itemCenterX <= deletePos.x + deletePos.width &&
-          itemCenterY >= deletePos.y &&
-          itemCenterY <= deletePos.y + deletePos.height
-        ) {
+        // Add tolerance/padding to make it easier to hit (20% of item size)
+        const tolerance = Math.min(itemWidth, itemHeight) * 0.2;
+        const expandedDeleteX = deletePos.x - tolerance;
+        const expandedDeleteY = deletePos.y - tolerance;
+        const expandedDeleteWidth = deletePos.width + tolerance * 2;
+        const expandedDeleteHeight = deletePos.height + tolerance * 2;
+
+        // Check if item bounding box overlaps with expanded delete component bounds
+        // This is more forgiving than checking just the center point
+        const itemLeft = p.x.value;
+        const itemRight = p.x.value + itemWidth;
+        const itemTop = p.y.value;
+        const itemBottom = p.y.value + itemHeight;
+
+        // Bounding box intersection check
+        const overlaps =
+          itemLeft < expandedDeleteX + expandedDeleteWidth &&
+          itemRight > expandedDeleteX &&
+          itemTop < expandedDeleteY + expandedDeleteHeight &&
+          itemBottom > expandedDeleteY;
+
+        if (overlaps) {
           // Item was dropped into delete component - delete it
           runOnJS(deleteItem)(key);
           // Note: deleteItem will handle calling onDelete callback if provided

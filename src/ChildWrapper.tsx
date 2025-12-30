@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, View, Pressable } from "react-native";
 import Animated, {
   Easing,
@@ -300,6 +300,16 @@ export default function ChildWrapper({
     } as any;
   });
 
+  // Track delete mode on JS thread for conditional rendering
+  const [isInDeleteMode, setIsInDeleteMode] = useState(false);
+
+  useAnimatedReaction(
+    () => deleteModeActive.value,
+    (current) => {
+      runOnJS(setIsInDeleteMode)(current);
+    }
+  );
+
   const handleDelete = () => {
     // Exit delete mode when delete button is pressed
     deleteModeActive.value = false;
@@ -314,6 +324,24 @@ export default function ChildWrapper({
 
   return (
     <Animated.View style={animatedStyle} pointerEvents="box-none">
+      {/* Full-item Pressable for delete - only active when in delete mode */}
+      {isInDeleteMode && (
+        <Pressable
+          onPress={handleDelete}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: itemWidth,
+            height: itemHeight,
+            zIndex: 2,
+          }}
+        />
+      )}
+
+      {/* Delete button (×) - visual indicator only */}
       <Animated.View
         style={[
           {
@@ -329,26 +357,17 @@ export default function ChildWrapper({
           },
           deleteButtonStyle,
         ]}
+        pointerEvents="none"
       >
-        <Pressable
-          onPress={handleDelete}
+        <Text
           style={{
-            width: "100%",
-            height: "100%",
-            justifyContent: "center",
-            alignItems: "center",
+            fontSize: itemWidth * 0.2,
+            color: "black",
+            fontWeight: 500,
           }}
         >
-          <Text
-            style={{
-              fontSize: itemWidth * 0.2,
-              color: "black",
-              fontWeight: 500,
-            }}
-          >
-            ×
-          </Text>
-        </Pressable>
+          ×
+        </Text>
       </Animated.View>
 
       {children}

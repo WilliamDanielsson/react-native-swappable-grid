@@ -13,6 +13,11 @@ A powerful React Native component for creating draggable, swappable grid layouts
 - 🔄 **Order Tracking**: Callbacks for order changes and drag end events
 - ⚡ **Performance**: Built with React Native Reanimated and Gesture Handler for 60fps animations
 
+## Example Project
+
+To see common usages and examples. Check out the example project 🚀
+- [react-native-swappable-grid-example-app-repo](https://github.com/WilliamDanielsson/react-native-swappable-grid-example)
+
 ## Installation
 
 ```bash
@@ -33,8 +38,35 @@ yarn add react react-native react-native-gesture-handler react-native-reanimated
 
 **Important**: Make sure to follow the setup instructions for:
 
-- [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/installation)
-- [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/installation)
+- [react-native-gesture-handler](https://docs.swmansion.com/react-native-gesture-handler/docs/fundamentals/installation/)
+- [react-native-reanimated](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started/)
+
+**TLDR**: Wrap your app with the GestureHandlerRootView inside RootLayout in _layout.tsx
+
+Additional fix for now: Disable Strict Mode for Reanimated because of logger warnings did I did not manage to get rid of. 
+
+```tsx
+import { Slot } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  configureReanimatedLogger,
+  ReanimatedLogLevel,
+} from "react-native-reanimated";
+
+// Strict mode is disabled because it gave warnings in SwappableGrid with useSharedValue()
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn, // Only log warnings & errors
+  strict: false, // Disable strict mode warnings
+});
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView>
+      <Slot />
+    </GestureHandlerRootView>
+  );
+}
+```
 
 ## Basic Usage
 
@@ -54,7 +86,7 @@ const MyComponent = () => {
     <SwappableGrid
       itemWidth={100}
       itemHeight={100}
-      numColumns={3}
+      numColumns={3} /* leave excluded for dynamic columns */
       gap={8}
       onOrderChange={(keys) => {
         // Reorder items based on new key order
@@ -81,27 +113,27 @@ const MyComponent = () => {
 
 ### SwappableGrid Props
 
-| Prop                     | Type                                    | Required | Default | Description                                                                                                |
+| Prop                     | Type                                    | Usage | Default | Description                                                                                                |
 | ------------------------ | --------------------------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `children`               | `ReactNode`                             | ✅       | -       | The child components to render in the grid. Each child should have a unique key.                           |
-| `itemWidth`              | `number`                                | ✅       | -       | Width of each grid item in pixels                                                                          |
-| `itemHeight`             | `number`                                | ✅       | -       | Height of each grid item in pixels                                                                         |
-| `gap`                    | `number`                                | ❌       | `8`     | Gap between grid items in pixels                                                                           |
-| `containerPadding`       | `number`                                | ❌       | `8`     | Padding around the container in pixels                                                                     |
-| `longPressMs`            | `number`                                | ❌       | `300`   | Duration in milliseconds to hold before drag starts                                                        |
-| `numColumns`             | `number`                                | ❌       | Auto    | Number of columns in the grid. If not provided, will be calculated automatically based on container width  |
-| `wiggle`                 | `{ duration: number; degrees: number }` | ❌       | -       | Wiggle animation configuration when items are in drag mode or delete mode                                  |
-| `onDragEnd`              | `(ordered: ChildNode[]) => void`        | ❌       | -       | Callback fired when drag ends, providing the ordered array of child nodes                                  |
-| `onOrderChange`          | `(keys: string[]) => void`              | ❌       | -       | Callback fired when the order changes, providing an array of keys in the new order                         |
-| `onDelete`               | `(key: string) => void`                 | ❌       | -       | Callback fired when an item is deleted, providing the key of the deleted item                              |
-| `dragSizeIncreaseFactor` | `number`                                | ❌       | `1.06`  | Factor by which the dragged item scales up                                                                 |
-| `scrollSpeed`            | `number`                                | ❌       | `10`    | Speed of auto-scrolling when dragging near edges                                                           |
-| `scrollThreshold`        | `number`                                | ❌       | `100`   | Distance from edge in pixels that triggers auto-scroll                                                     |
-| `style`                  | `StyleProp<ViewStyle>`                  | ❌       | -       | Custom style for the ScrollView container                                                                  |
-| `trailingComponent`      | `ReactNode`                             | ❌       | -       | Component to render after all grid items (e.g., an "Add" button)                                           |
-| `deleteComponent`        | `ReactNode`                             | ❌       | -       | Component to render as a delete target (shown when dragging). If provided, disables hold-to-delete feature |
-| `deleteComponentStyle`   | `StyleProp<ViewStyle>`                  | ❌       | -       | Custom style for the delete component. If provided, allows custom positioning                              |
-| `reverse`                | `boolean`                               | ❌       | `false` | If true, reverses the order of items (right-to-left, bottom-to-top)                                        |
+| `children`               | `ReactNode`                             | Required       | -       | The child components to render in the grid. Each child should have a unique key.                           |
+| `itemWidth`              | `number`                                | Required         | -       | Width of each grid item in pixels                                                                          |
+| `itemHeight`             | `number`                                | Required         | -       | Height of each grid item in pixels                                                                         |
+| `gap`                    | `number`                                | Optional       | `8`     | Gap between grid items in pixels                                                                           |
+| `containerPadding`       | `number`                                | Optional        | `8`     | Padding around the container in pixels                                                                     |
+| `longPressMs`            | `number`                                | Optional        | `300`   | Duration in milliseconds to hold before drag starts                                                        |
+| `numColumns`             | `number`                                | Optional        | Auto    | Number of columns in the grid. If not provided, will be calculated automatically based on container width  |
+| `wiggle`                 | `{ duration: number; degrees: number }` | Optional        | -       | Wiggle animation configuration when items are in drag mode or delete mode                                  |
+| `onDragEnd`              | `(ordered: ChildNode[]) => void`        | Optional        | -       | Callback fired when drag ends, providing the ordered array of child nodes                                  |
+| `onOrderChange`          | `(keys: string[]) => void`              | Optional        | -       | Callback fired when the order changes, providing an array of keys in the new order                         |
+| `onDelete`               | `(key: string) => void`                 | Optional        | -       | Callback fired when an item is deleted, providing the key of the deleted item                              |
+| `dragSizeIncreaseFactor` | `number`                                | Optional        | `1.06`  | Factor by which the dragged item scales up                                                                 |
+| `scrollSpeed`            | `number`                                | Optional      | `10`    | Speed of auto-scrolling when dragging near edges                                                           |
+| `scrollThreshold`        | `number`                                | Optional        | `100`   | Distance from edge in pixels that triggers auto-scroll                                                     |
+| `style`                  | `StyleProp<ViewStyle>`                  | Optional        | -       | Custom style for the ScrollView container                                                                  |
+| `trailingComponent`      | `ReactNode`                             | Optional        | -       | Component to render after all grid items (e.g., an "Add" button)                                           |
+| `deleteComponent`        | `ReactNode`                             | Optional        | -       | Component to render as a delete target (shown when dragging). If provided, disables hold-to-delete feature |
+| `deleteComponentStyle`   | `StyleProp<ViewStyle>`                  | Optional        | -       | Custom style for the delete component. If provided, allows custom positioning                              |
+| `reverse`                | `boolean`                               | Optional        | `false` | If true, reverses the order of items (right-to-left, bottom-to-top)                                        |
 
 ### SwappableGridRef
 
@@ -128,7 +160,7 @@ gridRef.current?.cancelDeleteMode();
 <SwappableGrid
   itemWidth={100}
   itemHeight={100}
-  numColumns={3}
+  numColumns={3} /* leave excluded for dynamic columns */
   wiggle={{ duration: 200, degrees: 3 }}
   onOrderChange={(keys) => console.log("New order:", keys)}
 >

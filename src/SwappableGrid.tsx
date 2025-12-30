@@ -33,7 +33,7 @@ const normalizeKey = (k: React.Key) => String(k).replace(/^\.\$/, "");
 /**
  * Props for the SwappableGrid component
  */
-type Props = {
+type SwappableGridProps = {
   /** The child components to render in the grid. Each child should have a unique key. */
   children: ReactNode;
   /** Width of each grid item in pixels */
@@ -113,7 +113,7 @@ export interface SwappableGridRef {
  * </SwappableGrid>
  * ```
  */
-const SwappableGrid = forwardRef<SwappableGridRef, Props>(
+const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
   (
     {
       children,
