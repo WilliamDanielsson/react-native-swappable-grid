@@ -1,5 +1,9 @@
 # react-native-swappable-grid
 
+<div align="center">
+  <img src="./assets/logo.gif" width="300" height="auto" />
+</div>
+
 A powerful React Native component for creating draggable, swappable grid layouts with smooth animations, reordering, and delete functionality.
 
 ## Features
