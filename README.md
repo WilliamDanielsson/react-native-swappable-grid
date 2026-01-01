@@ -13,6 +13,63 @@ A powerful React Native component for creating draggable, swappable grid layouts
 - 🔄 **Order Tracking**: Callbacks for order changes and drag end events
 - ⚡ **Performance**: Built with React Native Reanimated and Gesture Handler for 60fps animations
 
+## 📱 Demo
+
+<h3 align="center">
+  Drag and re-order items
+</h3>
+
+<div align="center">
+  <img src="./assets/re-order.gif" width="300" height="auto" />
+</div>
+
+</br>
+</br>
+
+<h3 align="center">
+  Add new items
+</h3>
+
+<div align="center">
+  <img src="./assets/add-items.gif" width="300" height="auto" />
+</div>
+
+</br>
+</br>
+
+<h3 align="center">
+  The grid can have handle any item size and adjustes itself dynamically
+</h3>
+
+<div align="center">
+  <img src="./assets/re-size.gif" width="300" height="auto" />
+</div>
+
+</br>
+</br>
+
+<h3 align="center">
+  Hold still to delete items
+</h3>
+
+<div align="center">
+  <img src="./assets/hold-to-delete.gif" width="300" height="auto" />
+</div>
+
+</br>
+</br>
+
+<h3 align="center">
+  Drag to delete items
+</h3>
+
+<div align="center">
+  <img src="./assets/drag-to-delete.gif" width="300" height="auto" />
+</div>
+
+</br>
+</br>
+
 ## Example Project
 
 To see common usages and examples. Check out the example project 🚀
