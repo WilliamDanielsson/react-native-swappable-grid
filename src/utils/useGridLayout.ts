@@ -19,7 +19,7 @@ interface useGridLayoutProps {
   itemHeight: number;
   gap: number;
   containerPadding: number;
-  longPressMs: number;
+  holdToDragMs: number;
   numColumns?: number;
   onDragEnd?: (ordered: ChildNode[]) => void;
   onOrderChange?: (keys: string[]) => void;
@@ -37,7 +37,7 @@ export function useGridLayout({
   itemHeight,
   gap,
   containerPadding,
-  longPressMs,
+  holdToDragMs,
   numColumns,
   onDragEnd,
   onOrderChange,
@@ -207,7 +207,7 @@ export function useGridLayout({
       scrollViewRef,
       scrollOffset,
       viewportH,
-      longPressMs,
+      holdToDragMs,
       scrollSpeed,
       scrollThreshold,
       reverse,

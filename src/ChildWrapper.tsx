@@ -26,6 +26,8 @@ type Props = {
   anyItemInDeleteMode: SharedValue<boolean>;
   children: React.ReactNode;
   wiggle?: { duration: number; degrees: number };
+  wiggleDeleteMode?: { duration: number; degrees: number };
+  holdStillToDeleteMs?: number;
   dragSizeIncreaseFactor: number;
   onDelete?: () => void;
   disableHoldToDelete?: boolean; // If true, disable the hold-to-delete feature
@@ -39,6 +41,8 @@ export default function ChildWrapper({
   anyItemInDeleteMode,
   children,
   wiggle,
+  wiggleDeleteMode,
+  holdStillToDeleteMs = 1000,
   dragSizeIncreaseFactor,
   onDelete,
   disableHoldToDelete = false,
@@ -147,8 +151,8 @@ export default function ChildWrapper({
     // Increment by ~16ms per frame (assuming 60fps)
     stillTimer.value += 16;
 
-    // Enter delete mode after 1 second (1000ms) of being held still
-    if (stillTimer.value >= 1000) {
+    // Enter delete mode after holdStillToDeleteMs of being held still
+    if (stillTimer.value >= holdStillToDeleteMs) {
       deleteModeActive.value = true;
       anyItemInDeleteMode.value = true; // Set global delete mode
       showDelete.value = true;
@@ -192,7 +196,18 @@ export default function ChildWrapper({
       anyInDeleteMode: anyItemInDeleteMode.value,
     }),
     ({ isEditMode, isActive, inDeleteMode, anyInDeleteMode }) => {
-      if (!wiggle) {
+      // Determine the target wiggle mode
+      let targetMode: "none" | "normal" | "delete" = "none";
+      if (inDeleteMode && (wiggleDeleteMode || wiggle)) {
+        targetMode = "delete";
+      } else if (anyInDeleteMode && !isActive && wiggle) {
+        targetMode = "normal";
+      } else if (isEditMode && !isActive && wiggle) {
+        targetMode = "normal";
+      }
+
+      // If no wiggle is configured at all, stop animation
+      if (!wiggle && !wiggleDeleteMode) {
         if (currentWiggleMode.value !== "none") {
           cancelAnimation(rotation);
           currentWiggleMode.value = "none";
@@ -201,14 +216,24 @@ export default function ChildWrapper({
         return;
       }
 
-      // Determine the target wiggle mode
-      let targetMode: "none" | "normal" | "delete" = "none";
-      if (inDeleteMode) {
-        targetMode = "delete";
-      } else if (anyInDeleteMode && !isActive) {
-        targetMode = "normal";
-      } else if (isEditMode && !isActive) {
-        targetMode = "normal";
+      // If in delete mode but no wiggleDeleteMode and no wiggle, stop animation
+      if (targetMode === "delete" && !wiggleDeleteMode && !wiggle) {
+        if (currentWiggleMode.value !== "none") {
+          cancelAnimation(rotation);
+          currentWiggleMode.value = "none";
+        }
+        rotation.value = withTiming(0, { duration: 150 });
+        return;
+      }
+
+      // If normal mode but no wiggle, stop animation
+      if (targetMode === "normal" && !wiggle) {
+        if (currentWiggleMode.value !== "none") {
+          cancelAnimation(rotation);
+          currentWiggleMode.value = "none";
+        }
+        rotation.value = withTiming(0, { duration: 150 });
+        return;
       }
 
       // Only restart animation if mode changed
@@ -222,13 +247,17 @@ export default function ChildWrapper({
       // Cancel current animation
       cancelAnimation(rotation);
 
-      // If this item is in delete mode, wiggle more (2x degrees, faster)
+      // If this item is in delete mode, use wiggleDeleteMode if provided, otherwise use 2x degrees and 0.7x duration
       if (targetMode === "delete") {
-        const deleteWiggleDegrees = wiggle.degrees * 2;
-        const deleteWiggleDuration = wiggle.duration * 0.7; // Faster wiggle
+        const deleteWiggleDegrees = wiggleDeleteMode
+          ? wiggleDeleteMode.degrees
+          : (wiggle?.degrees ?? 0) * 2;
+        const deleteWiggleDuration = wiggleDeleteMode
+          ? wiggleDeleteMode.duration
+          : (wiggle?.duration ?? 200) * 0.7; // Faster wiggle
 
         // If transitioning from normal wiggle, preserve the phase by scaling
-        if (previousMode === "normal") {
+        if (previousMode === "normal" && wiggle) {
           const currentRot = rotation.value;
           const scaleFactor = deleteWiggleDegrees / wiggle.degrees;
           rotation.value = currentRot * scaleFactor;
@@ -278,7 +307,14 @@ export default function ChildWrapper({
         rotation.value = withTiming(0, { duration: 150 });
       }
     },
-    [dragMode, position.active, deleteModeActive, anyItemInDeleteMode]
+    [
+      dragMode,
+      position.active,
+      deleteModeActive,
+      anyItemInDeleteMode,
+      wiggle,
+      wiggleDeleteMode,
+    ]
   );
 
   const animatedStyle = useAnimatedStyle(() => {

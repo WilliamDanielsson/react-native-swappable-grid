@@ -40,7 +40,7 @@ interface PanProps {
   scrollViewRef: AnimatedRef<any>;
   scrollOffset: SharedValue<number>;
   viewportH: SharedValue<number>;
-  longPressMs: number;
+  holdToDragMs: number;
   contentH: SharedValue<number>;
   reverse?: boolean;
   deleteComponentPosition?: SharedValue<{
@@ -53,7 +53,9 @@ interface PanProps {
   contentPaddingBottom?: number; // Padding bottom from style prop to allow dragging into padding area
 }
 
-export const PanWithLongPress = (props: PanProps & { longPressMs: number }) => {
+export const PanWithLongPress = (
+  props: PanProps & { holdToDragMs: number }
+) => {
   const {
     order,
     dynamicNumColumns,
@@ -77,7 +79,7 @@ export const PanWithLongPress = (props: PanProps & { longPressMs: number }) => {
     scrollViewRef,
     scrollOffset,
     viewportH,
-    longPressMs,
+    holdToDragMs,
     contentH,
     reverse = false,
     deleteComponentPosition,
@@ -132,7 +134,7 @@ export const PanWithLongPress = (props: PanProps & { longPressMs: number }) => {
 
   return Gesture.Pan()
     .minDistance(10)
-    .activateAfterLongPress(longPressMs)
+    .activateAfterLongPress(holdToDragMs)
     .onStart(({ x, y }) => {
       initialScrollOffset.value = scrollOffset.value;
       dragMode.value = true;

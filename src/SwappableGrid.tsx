@@ -45,7 +45,7 @@ type SwappableGridProps = {
   /** Padding around the container in pixels. Defaults to 8. */
   containerPadding?: number;
   /** Duration in milliseconds to hold before drag starts. Defaults to 300. */
-  longPressMs?: number;
+  holdToDragMs?: number;
   /** Number of columns in the grid. If not provided, will be calculated automatically based on container width. */
   numColumns?: number;
   /** Wiggle animation configuration when items are in drag mode or delete mode */
@@ -55,6 +55,15 @@ type SwappableGridProps = {
     /** Rotation degrees for the wiggle animation */
     degrees: number;
   };
+  /** Wiggle animation configuration specifically for delete mode. If not provided, uses 2x degrees and 0.7x duration of wiggle prop. */
+  wiggleDeleteMode?: {
+    /** Duration of one wiggle cycle in milliseconds */
+    duration: number;
+    /** Rotation degrees for the wiggle animation */
+    degrees: number;
+  };
+  /** Duration in milliseconds to hold an item still before entering delete mode. Defaults to 1000. */
+  holdStillToDeleteMs?: number;
   /** Callback fired when drag ends, providing the ordered array of child nodes */
   onDragEnd?: (ordered: ChildNode[]) => void;
   /** Callback fired when the order changes, providing an array of keys in the new order */
@@ -121,12 +130,14 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       itemHeight,
       gap = 8,
       containerPadding = 8,
-      longPressMs = 300,
+      holdToDragMs = 300,
       numColumns,
       onDragEnd,
       onOrderChange,
       onDelete,
       wiggle,
+      wiggleDeleteMode,
+      holdStillToDeleteMs = 1000,
       style,
       dragSizeIncreaseFactor = 1.06,
       scrollThreshold = 100,
@@ -188,7 +199,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
     } = useGridLayout({
       reverse,
       children,
-      longPressMs,
+      holdToDragMs,
       itemWidth,
       itemHeight,
       gap,
@@ -418,8 +429,10 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
                     dragMode={dragMode}
                     anyItemInDeleteMode={anyItemInDeleteMode}
                     wiggle={wiggle}
+                    wiggleDeleteMode={wiggleDeleteMode}
+                    holdStillToDeleteMs={holdStillToDeleteMs}
                     dragSizeIncreaseFactor={dragSizeIncreaseFactor}
-                    disableHoldToDelete={!!deleteComponent}
+                    disableHoldToDelete={!onDelete || !!deleteComponent}
                     onDelete={() => {
                       deleteItem(key);
                       if (onDelete) {
