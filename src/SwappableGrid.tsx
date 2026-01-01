@@ -194,6 +194,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       positions,
       dragMode,
       anyItemInDeleteMode,
+      isPressingDeleteItem,
       order,
       deleteComponentPosition,
     } = useGridLayout({
@@ -396,8 +397,13 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
           }
           touchEndTimeoutRef.current = setTimeout(() => {
             // Only cancel if still in delete mode and not dragging
+            // Don't cancel if user is currently pressing an item (they might be deleting it)
             // This ensures we don't cancel when user is interacting with items
-            if (anyItemInDeleteMode.value && !dragMode.value) {
+            if (
+              anyItemInDeleteMode.value &&
+              !dragMode.value &&
+              !isPressingDeleteItem.value
+            ) {
               anyItemInDeleteMode.value = false;
             }
           }, 100); // Small delay to let item interactions complete
@@ -428,6 +434,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
                     itemHeight={itemHeight}
                     dragMode={dragMode}
                     anyItemInDeleteMode={anyItemInDeleteMode}
+                    isPressingDeleteItem={isPressingDeleteItem}
                     wiggle={wiggle}
                     wiggleDeleteMode={wiggleDeleteMode}
                     holdStillToDeleteMs={holdStillToDeleteMs}

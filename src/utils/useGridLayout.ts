@@ -78,6 +78,7 @@ export function useGridLayout({
   const startY = useSharedValue(0);
   const dragMode = useSharedValue(false);
   const anyItemInDeleteMode = useSharedValue(false); // Global delete mode state
+  const isPressingDeleteItem = useSharedValue(false); // Track if user is pressing an item in delete mode
   const contentH = useSharedValue(0);
   const scrollOffset = useSharedValue(0);
 
@@ -222,6 +223,7 @@ export function useGridLayout({
     orderState,
     dragMode,
     anyItemInDeleteMode,
+    isPressingDeleteItem,
     composed,
     dynamicNumColumns,
     onLayoutContent,

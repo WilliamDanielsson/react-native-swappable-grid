@@ -24,6 +24,7 @@ type Props = {
   itemHeight: number;
   dragMode: SharedValue<boolean>;
   anyItemInDeleteMode: SharedValue<boolean>;
+  isPressingDeleteItem: SharedValue<boolean>;
   children: React.ReactNode;
   wiggle?: { duration: number; degrees: number };
   wiggleDeleteMode?: { duration: number; degrees: number };
@@ -39,6 +40,7 @@ export default function ChildWrapper({
   itemHeight,
   dragMode,
   anyItemInDeleteMode,
+  isPressingDeleteItem,
   children,
   wiggle,
   wiggleDeleteMode,
@@ -122,11 +124,17 @@ export default function ChildWrapper({
     // Reset release tracking when not in delete mode
     wasReleasedAfterDeleteMode.value = false;
 
-    // If not in drag mode or not active, reset timer
-    if (!isDragging || !isActive) {
+    // Timer runs when item is active (being held)
+    // Note: isActive (position.active.value) is set when gesture activates after long press
+    // isDragging (dragMode.value) is also set at that time, but we primarily check isActive
+    // to allow timer to work even in edge cases
+    if (!isActive) {
       stillTimer.value = 0;
       return;
     }
+
+    // Item is active - timer can run (dragMode should also be true at this point,
+    // but we don't require it to allow timer to work in all cases)
 
     // Item is active (being held down) - check if it's still
     // Check if position has changed significantly (more than 10px threshold)
@@ -363,6 +371,16 @@ export default function ChildWrapper({
       {/* Full-item Pressable for delete - only active when in delete mode */}
       {isInDeleteMode && (
         <Pressable
+          onPressIn={() => {
+            // Mark that we're pressing an item to prevent ScrollView from canceling delete mode
+            isPressingDeleteItem.value = true;
+          }}
+          onPressOut={() => {
+            // Clear the flag after a short delay to allow onPress to fire
+            setTimeout(() => {
+              isPressingDeleteItem.value = false;
+            }, 50);
+          }}
           onPress={handleDelete}
           style={{
             position: "absolute",
