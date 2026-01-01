@@ -64,6 +64,8 @@ type SwappableGridProps = {
   };
   /** Duration in milliseconds to hold an item still before entering delete mode. Defaults to 1000. */
   holdStillToDeleteMs?: number;
+  /** Enable haptic feedback (vibration) when entering delete mode. Defaults to false. */
+  hapticFeedback?: boolean;
   /** Callback fired when drag ends, providing the ordered array of child nodes */
   onDragEnd?: (ordered: ChildNode[]) => void;
   /** Callback fired when the order changes, providing an array of keys in the new order */
@@ -138,6 +140,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       wiggle,
       wiggleDeleteMode,
       holdStillToDeleteMs = 1000,
+      hapticFeedback = false,
       style,
       dragSizeIncreaseFactor = 1.06,
       scrollThreshold = 100,
@@ -438,6 +441,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
                     wiggle={wiggle}
                     wiggleDeleteMode={wiggleDeleteMode}
                     holdStillToDeleteMs={holdStillToDeleteMs}
+                    hapticFeedback={hapticFeedback}
                     dragSizeIncreaseFactor={dragSizeIncreaseFactor}
                     disableHoldToDelete={!onDelete || !!deleteComponent}
                     onDelete={() => {

@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Text, View, Pressable } from "react-native";
+import { Text, View, Pressable, Vibration, Platform } from "react-native";
+
+// Try to import expo-haptics (optional dependency)
+let Haptics: any = null;
+try {
+  Haptics = require("expo-haptics");
+} catch (e) {
+  // expo-haptics not available, will fall back to Vibration API
+}
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -32,6 +40,7 @@ type Props = {
   dragSizeIncreaseFactor: number;
   onDelete?: () => void;
   disableHoldToDelete?: boolean; // If true, disable the hold-to-delete feature
+  hapticFeedback?: boolean; // If true, enable haptic feedback when entering delete mode
 };
 
 export default function ChildWrapper({
@@ -48,6 +57,7 @@ export default function ChildWrapper({
   dragSizeIncreaseFactor,
   onDelete,
   disableHoldToDelete = false,
+  hapticFeedback = false,
 }: Props) {
   const rotation = useSharedValue(0);
   const currentWiggleMode = useSharedValue<"none" | "normal" | "delete">(
@@ -62,6 +72,36 @@ export default function ChildWrapper({
   const lastY = useSharedValue(position.y.value);
   const frameCounter = useSharedValue(0);
   const wasReleasedAfterDeleteMode = useSharedValue(false); // Track if item was released after entering delete mode
+
+  // Function to trigger haptic feedback (called from worklet via runOnJS)
+  const triggerHapticFeedback = () => {
+    try {
+      // Platform-specific haptic feedback
+      if (Platform.OS === "ios") {
+        // iOS: Prefer expo-haptics for better control (subtle feedback)
+        if (Haptics && Haptics.impactAsync) {
+          // Use light impact for subtle feedback (similar to iOS system haptics)
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          return;
+        }
+        // Fallback to Vibration API if expo-haptics not available
+        // Note: This will be a stronger vibration than desired on iOS
+        if (Vibration && typeof Vibration.vibrate === "function") {
+          Vibration.vibrate(1);
+        }
+      } else {
+        // Android: Use Vibration API (works well and is more reliable than expo-haptics)
+        if (Vibration && typeof Vibration.vibrate === "function") {
+          // Android requires a pattern array: [delay, duration]
+          // [0, 20] means: start immediately (0ms delay), vibrate for 20ms
+          Vibration.vibrate([0, 20]);
+        }
+      }
+    } catch (error) {
+      // Silently fail if haptic feedback is not available or fails
+      // This allows the library to work in environments where haptics are not supported
+    }
+  };
 
   // Timer logic that runs every frame via useDerivedValue
   useDerivedValue(() => {
@@ -160,11 +200,16 @@ export default function ChildWrapper({
     stillTimer.value += 16;
 
     // Enter delete mode after holdStillToDeleteMs of being held still
-    if (stillTimer.value >= holdStillToDeleteMs) {
+    if (stillTimer.value >= holdStillToDeleteMs && !deleteModeActive.value) {
       deleteModeActive.value = true;
       anyItemInDeleteMode.value = true; // Set global delete mode
       showDelete.value = true;
       wasReleasedAfterDeleteMode.value = false; // Reset on entry
+
+      // Trigger haptic feedback when entering delete mode
+      if (hapticFeedback) {
+        runOnJS(triggerHapticFeedback)();
+      }
     }
   });
 

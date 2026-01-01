@@ -13,6 +13,7 @@ A powerful React Native component for creating draggable, swappable grid layouts
 - 🎨 **Smooth Animations**: Optional wiggle animation during drag mode
 - 🗑️ **Delete Support**: Built-in hold-still-to-delete or custom delete component (trashcan)
 - ➕ **Trailing Components**: Support for additional components (e.g., "Add" button)
+- 👋 **Haptic Feedback**: Optional haptic feedback on deletion with Vibration API, or optionally (better) expo-haptics
 - 📜 **Auto-scroll**: Automatic scrolling when dragging near edges
 - 🔄 **Order Tracking**: Callbacks for order changes and drag end events
 - ⚡ **Performance**: Built with React Native Reanimated and Gesture Handler for 60fps animations
@@ -97,6 +98,16 @@ npm install react react-native react-native-gesture-handler react-native-reanima
 # or
 yarn add react react-native react-native-gesture-handler react-native-reanimated
 ```
+
+**Optional**: For better haptic feedback (especially on iOS), install `expo-haptics`:
+
+```bash
+npm install expo-haptics
+# or
+yarn add expo-haptics
+```
+
+> **Note**: `expo-haptics` works in both Expo and bare React Native projects. If not installed, the library will fall back to React Native's Vibration API (which has limited control on iOS and will give harsher vibrations).
 
 **Important**: Make sure to follow the setup instructions for:
 
@@ -187,6 +198,7 @@ const MyComponent = () => {
 | `wiggle`                 | `{ duration: number; degrees: number }` | Optional | -       | Wiggle animation configuration when items are in drag mode                                                                                        |
 | `wiggleDeleteMode`       | `{ duration: number; degrees: number }` | Optional | -       | Wiggle animation configuration specifically for delete mode. If not provided, uses 2x degrees and 0.7x duration of `wiggle` prop                  |
 | `holdStillToDeleteMs`    | `number`                                | Optional | `1000`  | Duration in milliseconds to hold an item still before entering delete mode                                                                        |
+| `hapticFeedback`         | `boolean`                               | Optional | `false` | Enable haptic feedback when entering delete mode. Uses `expo-haptics` if available (recommended for iOS), otherwise falls back to Vibration API.  |
 | `onDragEnd`              | `(ordered: ChildNode[]) => void`        | Optional | -       | Callback fired when drag ends, providing the ordered array of child nodes                                                                         |
 | `onOrderChange`          | `(keys: string[]) => void`              | Optional | -       | Callback fired when the order changes, providing an array of keys in the new order                                                                |
 | `onDelete`               | `(key: string) => void`                 | Optional | -       | Callback fired when an item is deleted, providing the key of the deleted item                                                                     |

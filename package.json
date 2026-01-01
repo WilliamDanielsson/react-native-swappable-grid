@@ -1,6 +1,6 @@
 {
   "name": "react-native-swappable-grid",
-  "version": "1.0.8",
+  "version": "1.0.10",
   "description": "A React Native component for creating draggable, swappable grid layouts with reordering, delete functionality, and smooth animations",
   "keywords": [
     "react-native",
@@ -40,6 +40,11 @@
     "react-native": "*",
     "react-native-gesture-handler": "*",
     "react-native-reanimated": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo-haptics": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/react": "^19.2.7",
