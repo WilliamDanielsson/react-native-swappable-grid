@@ -390,3 +390,9 @@ ISC
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Contact
+
+For any question regarding the package, feel free to contact me at **william99danielsson@hotmail.com**
+
+Cheers!✨
