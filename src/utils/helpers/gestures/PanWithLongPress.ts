@@ -100,7 +100,12 @@ export const PanWithLongPress = (
     if (!p) return;
 
     // 1. Clamp scroll offset
-    const maxScroll = contentH.value - viewportH.value;
+    // Account for contentPaddingBottom in max scroll calculation
+    // The ScrollView's contentContainerStyle paddingBottom adds to scrollable content
+    const maxScroll = Math.max(
+      0,
+      contentH.value + contentPaddingBottom - viewportH.value
+    );
     const newScroll = Math.max(
       0,
       Math.min(scrollOffset.value + scrollDir.value * scrollSpeed, maxScroll)
@@ -110,12 +115,23 @@ export const PanWithLongPress = (
     const scrollDelta = newScroll - initialScrollOffset.value;
     scrollOffset.value = newScroll;
 
-    // 2. Clamp item position
-    // Allow dragging into padding area (paddingBottom from style prop)
-    const minY = 0;
-    // Add paddingBottom to maxY to allow dragging into the padding area
-    const maxY = contentH.value - itemHeight + contentPaddingBottom;
+    // 2. Clamp item position to stay within visible viewport and content bounds
+    // This runs every frame for auto-scroll adjustments
+    // Use the same clamping logic as onUpdate for consistency
+    const minY = scrollOffset.value;
+    const visibleMaxY = scrollOffset.value + viewportH.value - itemHeight;
+    // Items are positioned starting at containerPadding, so the last item's bottom
+    // should be at contentH - containerPadding. But we also need to account for
+    // the ScrollView's contentContainerStyle paddingBottom which extends beyond contentH.
+    // Allow items to extend slightly into the padding area for better UX.
+    const paddingAllowance = Math.min(contentPaddingBottom, itemHeight * 0.75);
+    const contentMaxY =
+      contentH.value - containerPadding - itemHeight + paddingAllowance;
+    const maxY = Math.min(visibleMaxY, contentMaxY);
+
+    // Calculate position accounting for scroll delta (for auto-scroll)
     const proposedY = startY.value + offsetY.value + scrollDelta;
+    // Clamp the position
     p.y.value = Math.max(minY, Math.min(proposedY, maxY));
 
     // X stays normal
@@ -173,14 +189,50 @@ export const PanWithLongPress = (
       // Update active (top-left)
       offsetX.value = translationX;
       offsetY.value = translationY;
-      p.x.value = startX.value + offsetX.value;
-      p.y.value = startY.value + offsetY.value + scrollDelta;
 
-      // Auto-scroll (unchanged)
-      const pointerYInViewport = p.y.value - scrollOffset.value;
-      if (pointerYInViewport > viewportH.value - scrollThreshold) {
+      // Calculate proposed position
+      const proposedX = startX.value + offsetX.value;
+      const proposedY = startY.value + offsetY.value + scrollDelta;
+
+      // Clamp Y position immediately to prevent visual glitch
+      const minY = scrollOffset.value;
+      const visibleMaxY = scrollOffset.value + viewportH.value - itemHeight;
+      // Items are positioned starting at containerPadding, so the last item's bottom
+      // should be at contentH - containerPadding. But we also need to account for
+      // the ScrollView's contentContainerStyle paddingBottom which extends beyond contentH.
+      // Allow items to extend slightly into the padding area for better UX.
+      const paddingAllowance = Math.min(
+        contentPaddingBottom,
+        itemHeight * 0.75
+      );
+      const contentMaxY =
+        contentH.value - containerPadding - itemHeight + paddingAllowance;
+      const maxY = Math.min(visibleMaxY, contentMaxY);
+      const clampedY = Math.max(minY, Math.min(proposedY, maxY));
+
+      p.x.value = proposedX;
+      p.y.value = clampedY;
+
+      // Auto-scroll: Use item's center (or bottom edge if very large) to detect proximity to edges
+      // This ensures scrolling works even for very large items
+      const itemTopInViewport = p.y.value - scrollOffset.value;
+      const itemBottomInViewport = itemTopInViewport + itemHeight;
+      const itemCenterInViewport = itemTopInViewport + itemHeight / 2;
+
+      // For large items, check if any part is near the edge
+      // For small items, use center for more intuitive behavior
+      const nearBottom =
+        itemHeight > viewportH.value * 0.5
+          ? itemBottomInViewport > viewportH.value - scrollThreshold
+          : itemCenterInViewport > viewportH.value - scrollThreshold;
+      const nearTop =
+        itemHeight > viewportH.value * 0.5
+          ? itemTopInViewport < scrollThreshold
+          : itemCenterInViewport < scrollThreshold;
+
+      if (nearBottom) {
         scrollDir.value = 1;
-      } else if (pointerYInViewport < scrollThreshold) {
+      } else if (nearTop) {
         scrollDir.value = -1;
       } else {
         scrollDir.value = 0;
