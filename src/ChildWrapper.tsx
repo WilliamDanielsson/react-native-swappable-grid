@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Text, View, Pressable, Vibration, Platform } from "react-native";
+import {
+  Text,
+  View,
+  Pressable,
+  Vibration,
+  Platform,
+  LayoutChangeEvent,
+} from "react-native";
 
 // Try to import expo-haptics (optional dependency)
 let Haptics: any = null;
@@ -27,9 +34,12 @@ type Props = {
     x: SharedValue<number>;
     y: SharedValue<number>;
     active: SharedValue<number>;
+    width: SharedValue<number>;
+    height: SharedValue<number>;
   };
-  itemWidth: number;
-  itemHeight: number;
+  defaultWidth?: number; // Default width if item doesn't report its own size
+  defaultHeight?: number; // Default height if item doesn't report its own size
+  onDimensionsChange?: (width: number, height: number) => void; // Callback when item dimensions are measured
   dragMode: SharedValue<boolean>;
   anyItemInDeleteMode: SharedValue<boolean>;
   isPressingDeleteItem: SharedValue<boolean>;
@@ -45,8 +55,9 @@ type Props = {
 
 export default function ChildWrapper({
   position,
-  itemWidth,
-  itemHeight,
+  defaultWidth = 100,
+  defaultHeight = 100,
+  onDimensionsChange,
   dragMode,
   anyItemInDeleteMode,
   isPressingDeleteItem,
@@ -59,6 +70,26 @@ export default function ChildWrapper({
   disableHoldToDelete = false,
   hapticFeedback = false,
 }: Props) {
+  // Don't initialize dimensions - let child measure itself first
+  // This ensures we get the actual child dimensions, not defaults
+
+  // Measure child dimensions
+  const handleLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      // Only update if dimensions have changed significantly (avoid unnecessary updates)
+      const currentWidth = position.width.value;
+      const currentHeight = position.height.value;
+      if (
+        Math.abs(currentWidth - width) > 0.5 ||
+        Math.abs(currentHeight - height) > 0.5
+      ) {
+        position.width.value = width;
+        position.height.value = height;
+        onDimensionsChange?.(width, height);
+      }
+    }
+  };
   const rotation = useSharedValue(0);
   const currentWiggleMode = useSharedValue<"none" | "normal" | "delete">(
     "none"
@@ -177,12 +208,14 @@ export default function ChildWrapper({
     // but we don't require it to allow timer to work in all cases)
 
     // Item is active (being held down) - check if it's still
-    // Check if position has changed significantly (more than 10px threshold)
+    // Only reset timer if user is actively dragging (dragMode is true and position changed)
+    // Don't reset on initial activation or small position adjustments
     const moved =
-      Math.abs(x - lastX.value) > 10 || Math.abs(y - lastY.value) > 10;
+      isDragging &&
+      (Math.abs(x - lastX.value) > 10 || Math.abs(y - lastY.value) > 10);
 
     if (moved) {
-      // Reset timer if item moved while being held
+      // Reset timer if item moved while being dragged
       stillTimer.value = 0;
       lastX.value = x;
       lastY.value = y;
@@ -375,10 +408,20 @@ export default function ChildWrapper({
       ? withTiming(dragSizeIncreaseFactor, { duration: 120 })
       : withTiming(1, { duration: 120 });
 
+    // Use measured dimensions if available, otherwise use defaults
+    // If dimensions are 0 or very small, use defaults to allow child to render
+    const width =
+      position.width.value > 1 ? position.width.value : defaultWidth;
+    const height =
+      position.height.value > 1 ? position.height.value : defaultHeight;
+
     return {
       position: "absolute",
-      width: itemWidth,
-      height: itemHeight,
+      width: width,
+      height: height,
+      // Allow child to determine its own size by not constraining it
+      // The wrapper View will measure the actual child size
+      overflow: "visible",
       transform: [
         { translateX: position.x.value as any },
         { translateY: position.y.value as any },
@@ -389,7 +432,7 @@ export default function ChildWrapper({
     } as any;
   });
 
-  // Track delete mode on JS thread for conditional rendering
+  // Track delete mode on JS thread for Pressable disabled state
   const [isInDeleteMode, setIsInDeleteMode] = useState(false);
 
   useAnimatedReaction(
@@ -411,10 +454,24 @@ export default function ChildWrapper({
     }
   };
 
+  // Animated style for delete overlay - always render but control visibility
+  const deleteOverlayStyle = useAnimatedStyle(() => ({
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: position.width.value,
+    height: position.height.value,
+    zIndex: 2,
+    opacity: deleteModeActive.value ? 1 : 0,
+    pointerEvents: deleteModeActive.value ? "auto" : "none",
+  }));
+
   return (
     <Animated.View style={animatedStyle} pointerEvents="box-none">
-      {/* Full-item Pressable for delete - only active when in delete mode */}
-      {isInDeleteMode && (
+      {/* Full-item Pressable for delete - always render but control visibility */}
+      <Animated.View style={deleteOverlayStyle}>
         <Pressable
           onPressIn={() => {
             // Mark that we're pressing an item to prevent ScrollView from canceling delete mode
@@ -427,49 +484,54 @@ export default function ChildWrapper({
             }, 50);
           }}
           onPress={handleDelete}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: itemWidth,
-            height: itemHeight,
-            zIndex: 2,
-          }}
+          style={{ flex: 1 }}
+          disabled={!isInDeleteMode}
         />
-      )}
+      </Animated.View>
 
       {/* Delete button (×) - visual indicator only */}
       <Animated.View
         style={[
-          {
+          useAnimatedStyle(() => ({
             position: "absolute",
-            top: itemHeight * 0.01,
-            right: itemWidth * 0.04,
-            width: itemWidth * 0.2,
-            height: itemHeight * 0.2,
+            top: position.height.value * 0.01,
+            right: position.width.value * 0.04,
+            width: position.width.value * 0.2,
+            height: position.height.value * 0.2,
             borderRadius: 12,
             justifyContent: "center",
             alignItems: "center",
             zIndex: 3,
-          },
+          })),
           deleteButtonStyle,
         ]}
         pointerEvents="none"
       >
-        <Text
-          style={{
-            fontSize: itemWidth * 0.2,
+        <Animated.Text
+          style={useAnimatedStyle(() => ({
+            fontSize: position.width.value * 0.2,
             color: "black",
-            fontWeight: 500,
-          }}
+            fontWeight: "500",
+          }))}
         >
           ×
-        </Text>
+        </Animated.Text>
       </Animated.View>
 
-      {children}
+      <View
+        onLayout={handleLayout}
+        style={{
+          // Let child determine its own size - don't constrain it
+          // alignSelf: "flex-start" makes the wrapper shrink to fit content
+          alignSelf: "flex-start",
+          // Ensure the wrapper doesn't stretch the child
+          flexShrink: 0,
+          flexGrow: 0,
+        }}
+        collapsable={false}
+      >
+        {children}
+      </View>
     </Animated.View>
   );
 }

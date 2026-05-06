@@ -24,7 +24,7 @@ import { GestureDetector } from "react-native-gesture-handler";
 import computeMinHeight from "./utils/helpers/computerMinHeight";
 import { useGridLayout } from "./utils/useGridLayout";
 import ChildWrapper from "./ChildWrapper";
-import { indexToXY } from "./utils/helpers/indexCalculations";
+import { indexToXY, indexToXYDynamic } from "./utils/helpers/indexCalculations";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -36,10 +36,10 @@ const normalizeKey = (k: React.Key) => String(k).replace(/^\.\$/, "");
 type SwappableGridProps = {
   /** The child components to render in the grid. Each child should have a unique key. */
   children: ReactNode;
-  /** Width of each grid item in pixels */
-  itemWidth: number;
-  /** Height of each grid item in pixels */
-  itemHeight: number;
+  /** Width of each grid item in pixels. Optional if items report their own dimensions via onLayout. */
+  itemWidth?: number;
+  /** Height of each grid item in pixels. Optional if items report their own dimensions via onLayout. */
+  itemHeight?: number;
   /** Gap between grid items in pixels. Defaults to 8. */
   gap?: number;
   /** Padding around the container in pixels. Defaults to 8. */
@@ -200,6 +200,7 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       isPressingDeleteItem,
       order,
       deleteComponentPosition,
+      updateItemDimensions,
     } = useGridLayout({
       reverse,
       children,
@@ -225,9 +226,10 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       if (numColumns) {
         setCurrentNumColumns(numColumns);
       } else {
+        const defaultW = itemWidth || 100;
         const possibleCols = Math.floor(
           (e.nativeEvent.layout.width - containerPadding * 2 + gap) /
-            (itemWidth + gap)
+            (defaultW + gap)
         );
         setCurrentNumColumns(Math.max(1, possibleCols));
       }
@@ -255,25 +257,29 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
     );
 
     const trailingX = useDerivedValue(() => {
-      const { x } = indexToXY({
+      const { x } = indexToXYDynamic({
         index: order.value.length, // AFTER last swappable
-        itemWidth,
-        itemHeight,
+        order,
+        positions,
         dynamicNumColumns,
         containerPadding,
         gap,
+        defaultWidth: itemWidth || 100,
+        defaultHeight: itemHeight || 100,
       });
       return x;
     });
 
     const trailingY = useDerivedValue(() => {
-      const { y } = indexToXY({
+      const { y } = indexToXYDynamic({
         index: order.value.length,
-        itemWidth,
-        itemHeight,
+        order,
+        positions,
         dynamicNumColumns,
         containerPadding,
         gap,
+        defaultWidth: itemWidth || 100,
+        defaultHeight: itemHeight || 100,
       });
       return y;
     });
@@ -291,9 +297,10 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
       }
       // Default: center horizontally
       const cols = dynamicNumColumns.value;
+      const defaultW = itemWidth || 100;
       const totalWidth =
-        cols * itemWidth + (cols - 1) * gap + containerPadding * 2;
-      return (totalWidth - itemWidth) / 2;
+        cols * defaultW + (cols - 1) * gap + containerPadding * 2;
+      return (totalWidth - defaultW) / 2;
     });
 
     const deleteComponentY = useDerivedValue(() => {
@@ -302,16 +309,27 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
         return 0;
       }
       // Default: bottom of grid (after all items)
-      // Account for trailing component if it exists
-      const rows = Math.ceil(order.value.length / dynamicNumColumns.value);
-      const baseY = containerPadding + rows * (itemHeight + gap);
+      // Calculate based on actual item positions
+      let maxY = containerPadding;
+      const defaultH = itemHeight || 100;
 
-      // If trailing component exists, add extra space so delete component appears below it
-      if (trailingComponent && showTrailingComponent) {
-        return baseY + (itemHeight + gap);
+      // Find the maximum Y position of all items
+      order.value.forEach((key) => {
+        const pos = positions[key];
+        if (pos) {
+          const itemBottom = pos.y.value + (pos.height?.value || defaultH);
+          maxY = Math.max(maxY, itemBottom);
+        }
+      });
+
+      // Account for trailing component if it exists
+      if (showTrailingComponent && trailingComponent) {
+        maxY += gap + defaultH;
+      } else {
+        maxY += gap;
       }
 
-      return baseY + gap;
+      return maxY;
     });
 
     const deleteComponentStyleAnimated = useAnimatedStyle(() => {
@@ -337,11 +355,13 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
     useDerivedValue(() => {
       if (deleteComponent && deleteComponentPosition && !deleteComponentStyle) {
         // Only update if using default position (custom style uses onLayout)
+        const defaultW = itemWidth || 100;
+        const defaultH = itemHeight || 100;
         deleteComponentPosition.value = {
           x: deleteComponentX.value,
           y: deleteComponentY.value,
-          width: itemWidth,
-          height: itemHeight,
+          width: defaultW,
+          height: defaultH,
         };
       }
     });
@@ -352,34 +372,62 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
     // Trailing component is part of the grid, delete component is positioned below
     const itemsCountForHeight = orderState.length + (showTrailing ? 1 : 0);
 
-    // Calculate minimum height needed (on JS thread since computeMinHeight is not a worklet)
-    const baseHeight = computeMinHeight(
-      itemsCountForHeight,
-      currentNumColumns,
-      itemHeight + gap,
-      containerPadding
-    );
+    // Calculate minimum height needed
+    // For flow layout or dynamic dimensions, calculate based on actual item positions
+    const defaultH = itemHeight || 100;
+    const defaultW = itemWidth || 100;
+
+    // Check if we have custom dimensions (flow layout)
+    const hasCustomDimensions = orderState.some((key) => {
+      const pos = positions[key];
+      if (!pos) return false;
+      return (
+        Math.abs((pos.width?.value || defaultW) - defaultW) > 1 ||
+        Math.abs((pos.height?.value || defaultH) - defaultH) > 1
+      );
+    });
+
+    let calculatedHeight: number;
+    if (hasCustomDimensions && !numColumns) {
+      // Flow layout: calculate height based on estimated layout
+      // Note: We can't read SharedValue values on JS thread, so use a reasonable estimate
+      // The actual height will be measured via onLayout and auto-adjust
+      // Estimate: assume items pack reasonably (use average width for estimation)
+      const estimatedItemsPerRow = Math.max(
+        1,
+        Math.floor((300 - containerPadding * 2) / (defaultW + gap))
+      );
+      const estimatedRows = Math.ceil(orderState.length / estimatedItemsPerRow);
+      calculatedHeight =
+        containerPadding * 2 + estimatedRows * (defaultH + gap);
+    } else {
+      // Grid layout: use computeMinHeight
+      const baseHeight = computeMinHeight(
+        itemsCountForHeight,
+        currentNumColumns,
+        defaultH + gap,
+        containerPadding
+      );
+      calculatedHeight = baseHeight;
+    }
 
     // If delete component is shown and using default position, add extra space for it
-    let calculatedHeight = baseHeight;
     if (showDelete && !deleteComponentStyle) {
-      // Account for trailing component when calculating rows (same logic as deleteComponentY)
-      const totalItems = orderState.length + (showTrailing ? 1 : 0);
-      const rows = Math.ceil(totalItems / currentNumColumns);
-      const baseY = containerPadding + rows * (itemHeight + gap);
+      // Calculate max Y position of all items (may have changed with flow layout)
+      let maxY = containerPadding;
+      orderState.forEach((key) => {
+        const pos = positions[key];
+        if (pos) {
+          const itemH = pos.height?.value || defaultH;
+          const itemBottom = (pos.y?.value || 0) + itemH;
+          maxY = Math.max(maxY, itemBottom);
+        }
+      });
 
-      // If trailing component exists, add extra space so delete component appears below it
-      let deleteComponentY = baseY;
-      if (showTrailing) {
-        deleteComponentY = baseY + (itemHeight + gap);
-      } else {
-        deleteComponentY = baseY + gap;
-      }
-
-      const deleteComponentBottom = deleteComponentY + itemHeight;
-      // Ensure container is tall enough to show the delete component
+      // Add space for delete component
+      const deleteComponentBottom = maxY + gap + defaultH;
       calculatedHeight = Math.max(
-        baseHeight,
+        calculatedHeight,
         deleteComponentBottom + containerPadding
       );
     }
@@ -433,8 +481,11 @@ const SwappableGrid = forwardRef<SwappableGridRef, SwappableGridProps>(
                   <ChildWrapper
                     key={key}
                     position={positions[key]}
-                    itemWidth={itemWidth}
-                    itemHeight={itemHeight}
+                    defaultWidth={itemWidth}
+                    defaultHeight={itemHeight}
+                    onDimensionsChange={(width, height) => {
+                      updateItemDimensions(key, width, height);
+                    }}
                     dragMode={dragMode}
                     anyItemInDeleteMode={anyItemInDeleteMode}
                     isPressingDeleteItem={isPressingDeleteItem}

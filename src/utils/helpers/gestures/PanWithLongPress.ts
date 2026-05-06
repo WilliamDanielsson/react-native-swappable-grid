@@ -11,8 +11,12 @@ import {
 } from "react-native-reanimated";
 import {
   indexToXY,
+  indexToXYDynamic,
+  indexToXYFlow,
   toIndex1ColFromLiveMidlines,
   xyToIndex,
+  xyToIndexDynamic,
+  xyToIndexFlow,
 } from "../indexCalculations";
 
 interface PanProps {
@@ -26,8 +30,8 @@ interface PanProps {
   dragMode: SharedValue<boolean>;
   positions: any;
   itemsByKey: any;
-  itemWidth: number;
-  itemHeight: number;
+  itemWidth: number; // Default/fallback width
+  itemHeight: number; // Default/fallback height
   containerPadding: number;
   gap: number;
   setOrderState: React.Dispatch<React.SetStateAction<string[]>>;
@@ -42,6 +46,8 @@ interface PanProps {
   viewportH: SharedValue<number>;
   holdToDragMs: number;
   contentH: SharedValue<number>;
+  contentW: SharedValue<number>; // Container width for flow layout
+  numColumns?: number; // Optional: if provided, use grid layout instead of flow
   reverse?: boolean;
   deleteComponentPosition?: SharedValue<{
     x: number;
@@ -81,6 +87,8 @@ export const PanWithLongPress = (
     viewportH,
     holdToDragMs,
     contentH,
+    contentW,
+    numColumns,
     reverse = false,
     deleteComponentPosition,
     deleteItem,
@@ -118,15 +126,19 @@ export const PanWithLongPress = (
     // 2. Clamp item position to stay within visible viewport and content bounds
     // This runs every frame for auto-scroll adjustments
     // Use the same clamping logic as onUpdate for consistency
+    const actualItemHeight = p.height?.value || itemHeight;
     const minY = scrollOffset.value;
-    const visibleMaxY = scrollOffset.value + viewportH.value - itemHeight;
+    const visibleMaxY = scrollOffset.value + viewportH.value - actualItemHeight;
     // Items are positioned starting at containerPadding, so the last item's bottom
     // should be at contentH - containerPadding. But we also need to account for
     // the ScrollView's contentContainerStyle paddingBottom which extends beyond contentH.
     // Allow items to extend slightly into the padding area for better UX.
-    const paddingAllowance = Math.min(contentPaddingBottom, itemHeight * 0.75);
+    const paddingAllowance = Math.min(
+      contentPaddingBottom,
+      actualItemHeight * 0.75
+    );
     const contentMaxY =
-      contentH.value - containerPadding - itemHeight + paddingAllowance;
+      contentH.value - containerPadding - actualItemHeight + paddingAllowance;
     const maxY = Math.min(visibleMaxY, contentMaxY);
 
     // Calculate position accounting for scroll delta (for auto-scroll)
@@ -159,8 +171,10 @@ export const PanWithLongPress = (
       order.value.forEach((key) => {
         const p = positions[key];
         if (!p) return;
-        const cx = p.x.value + itemWidth / 2;
-        const cy = p.y.value + itemHeight / 2;
+        const actualItemWidth = p.width?.value || itemWidth;
+        const actualItemHeight = p.height?.value || itemHeight;
+        const cx = p.x.value + actualItemWidth / 2;
+        const cy = p.y.value + actualItemHeight / 2;
         const dx = cx - x;
         const dy = cy - y;
         const dist2 = dx * dx + dy * dy;
@@ -194,19 +208,24 @@ export const PanWithLongPress = (
       const proposedX = startX.value + offsetX.value;
       const proposedY = startY.value + offsetY.value + scrollDelta;
 
+      // Get actual item dimensions
+      const actualItemWidth = p.width?.value || itemWidth;
+      const actualItemHeight = p.height?.value || itemHeight;
+
       // Clamp Y position immediately to prevent visual glitch
       const minY = scrollOffset.value;
-      const visibleMaxY = scrollOffset.value + viewportH.value - itemHeight;
+      const visibleMaxY =
+        scrollOffset.value + viewportH.value - actualItemHeight;
       // Items are positioned starting at containerPadding, so the last item's bottom
       // should be at contentH - containerPadding. But we also need to account for
       // the ScrollView's contentContainerStyle paddingBottom which extends beyond contentH.
       // Allow items to extend slightly into the padding area for better UX.
       const paddingAllowance = Math.min(
         contentPaddingBottom,
-        itemHeight * 0.75
+        actualItemHeight * 0.75
       );
       const contentMaxY =
-        contentH.value - containerPadding - itemHeight + paddingAllowance;
+        contentH.value - containerPadding - actualItemHeight + paddingAllowance;
       const maxY = Math.min(visibleMaxY, contentMaxY);
       const clampedY = Math.max(minY, Math.min(proposedY, maxY));
 
@@ -216,17 +235,17 @@ export const PanWithLongPress = (
       // Auto-scroll: Use item's center (or bottom edge if very large) to detect proximity to edges
       // This ensures scrolling works even for very large items
       const itemTopInViewport = p.y.value - scrollOffset.value;
-      const itemBottomInViewport = itemTopInViewport + itemHeight;
-      const itemCenterInViewport = itemTopInViewport + itemHeight / 2;
+      const itemBottomInViewport = itemTopInViewport + actualItemHeight;
+      const itemCenterInViewport = itemTopInViewport + actualItemHeight / 2;
 
       // For large items, check if any part is near the edge
       // For small items, use center for more intuitive behavior
       const nearBottom =
-        itemHeight > viewportH.value * 0.5
+        actualItemHeight > viewportH.value * 0.5
           ? itemBottomInViewport > viewportH.value - scrollThreshold
           : itemCenterInViewport > viewportH.value - scrollThreshold;
       const nearTop =
-        itemHeight > viewportH.value * 0.5
+        actualItemHeight > viewportH.value * 0.5
           ? itemTopInViewport < scrollThreshold
           : itemCenterInViewport < scrollThreshold;
 
@@ -239,7 +258,8 @@ export const PanWithLongPress = (
       }
 
       // Compute target index from the active tile's **center**
-      const centerY = p.y.value + itemHeight / 2;
+      const centerY = p.y.value + actualItemHeight / 2;
+      const centerX = p.x.value + actualItemWidth / 2;
       const fromIndex = getIndexOfKey(key);
 
       let toIndex: number;
@@ -248,34 +268,188 @@ export const PanWithLongPress = (
           order,
           positions,
           activeKey,
-          itemHeight,
+          actualItemHeight,
           centerY,
           reverse // ← pass your prop
         );
       } else {
-        // unchanged multi-column path
-        const centerX = p.x.value + itemWidth / 2;
-        toIndex = xyToIndex({
-          order,
-          x: centerX,
-          y: centerY,
-          itemWidth,
-          itemHeight,
-          dynamicNumColumns,
-          containerPadding,
-          gap,
-        });
+        // For multi-column, use flow layout when numColumns is not provided
+        // Otherwise use grid layout
+        if (!numColumns) {
+          // Use flow layout - works with both uniform and variable-sized items
+          toIndex = xyToIndexFlow({
+            order,
+            x: centerX,
+            y: centerY,
+            positions,
+            containerWidth: contentW,
+            containerPadding,
+            gap,
+            defaultWidth: itemWidth,
+            defaultHeight: itemHeight,
+            activeKey,
+          });
+        } else {
+          // Use grid layout when numColumns is specified
+          const hasCustomDimensions = order.value.some((k) => {
+            const pos = positions[k];
+            if (!pos || k === key) return false;
+            return (
+              Math.abs((pos.width?.value || itemWidth) - itemWidth) > 1 ||
+              Math.abs((pos.height?.value || itemHeight) - itemHeight) > 1
+            );
+          });
+
+          if (hasCustomDimensions) {
+            // Use dynamic grid positioning when numColumns is specified
+            toIndex = xyToIndexDynamic({
+              order,
+              x: centerX,
+              y: centerY,
+              positions,
+              dynamicNumColumns,
+              containerPadding,
+              gap,
+              defaultWidth: itemWidth,
+              defaultHeight: itemHeight,
+              activeKey,
+            });
+          } else {
+            // Use uniform grid for better reliability
+            toIndex = xyToIndex({
+              order,
+              x: centerX,
+              y: centerY,
+              itemWidth,
+              itemHeight,
+              dynamicNumColumns,
+              containerPadding,
+              gap,
+            });
+          }
+        }
       }
 
+      // Clamp toIndex to valid range
+      const clampedToIndex = Math.max(
+        0,
+        Math.min(toIndex, order.value.length - 1)
+      );
+
+      const currentOrder = order.value;
+      const currentIndexInOrder = currentOrder.indexOf(key);
+
+      // Update order when target position changes
       if (
-        toIndex !== fromIndex &&
-        toIndex >= 0 &&
-        toIndex <= order.value.length - 1
+        currentIndexInOrder !== clampedToIndex &&
+        clampedToIndex >= 0 &&
+        clampedToIndex <= order.value.length - 1
       ) {
-        const next = [...order.value];
-        next.splice(fromIndex, 1);
-        next.splice(toIndex, 0, key);
+        // Index changed - update order
+        const next = [...currentOrder];
+        next.splice(currentIndexInOrder, 1); // Remove dragged item
+        // Insert at clampedToIndex: this puts dragged item at the position of the item we're over
+        next.splice(clampedToIndex, 0, key);
         order.value = next;
+
+        // Call onOrderChange callback immediately
+        if (onOrderChange) {
+          runOnJS(onOrderChange)([...next]);
+        }
+
+        // CRITICAL: Immediately update positions for non-dragged items
+        // This ensures items move in real-time during drag, not waiting for useDerivedValue
+        let displayIndexWithoutActive = 0;
+        for (let i = 0; i < next.length; i++) {
+          const itemKey = next[i];
+          if (itemKey === key) continue; // Skip dragged item
+
+          const p = positions[itemKey];
+          if (!p) continue;
+
+          // Store current position for comparison
+          const oldX = p.x.value;
+          const oldY = p.y.value;
+
+          // Calculate display index excluding the active item
+          const displayIndex = reverse
+            ? next.length - 1 - displayIndexWithoutActive
+            : displayIndexWithoutActive;
+          displayIndexWithoutActive++;
+
+          // Calculate target position based on layout type
+          // Use a temporary SharedValue wrapper for the new order
+          const tempOrder = { value: next } as SharedValue<string[]>;
+          let x: number, y: number;
+          if (!numColumns) {
+            // Flow layout
+            const result = indexToXYFlow({
+              index: displayIndex,
+              order: tempOrder,
+              positions,
+              containerWidth: contentW,
+              containerPadding,
+              gap,
+              defaultWidth: itemWidth,
+              defaultHeight: itemHeight,
+              activeKey,
+            });
+            x = result.x;
+            y = result.y;
+          } else {
+            // Grid layout
+            const hasCustomDimensions = next.some((k) => {
+              const pos = positions[k];
+              if (!pos || k === key) return false;
+              return (
+                Math.abs((pos.width?.value || itemWidth) - itemWidth) > 1 ||
+                Math.abs((pos.height?.value || itemHeight) - itemHeight) > 1
+              );
+            });
+
+            if (hasCustomDimensions) {
+              const result = indexToXYDynamic({
+                index: displayIndex,
+                order: tempOrder,
+                positions,
+                dynamicNumColumns,
+                containerPadding,
+                gap,
+                defaultWidth: itemWidth,
+                defaultHeight: itemHeight,
+              });
+              x = result.x;
+              y = result.y;
+            } else {
+              const result = indexToXY({
+                index: displayIndex,
+                itemWidth,
+                itemHeight,
+                dynamicNumColumns,
+                containerPadding,
+                gap,
+              });
+              x = result.x;
+              y = result.y;
+            }
+          }
+
+          // Only update if position actually changed (avoid unnecessary updates)
+          if (Math.abs(oldX - x) > 0.1 || Math.abs(oldY - y) > 0.1) {
+            // Update position - use direct assignment during drag for immediate updates
+            p.x.value = x;
+            p.y.value = y;
+
+            // Debug: log first few updates to see what's happening
+            if (i < 2) {
+              runOnJS((key, oldXVal, oldYVal, newX, newY) => {
+                console.log(
+                  `[Position Update] ${key}: (${oldXVal.toFixed(1)}, ${oldYVal.toFixed(1)}) -> (${newX.toFixed(1)}, ${newY.toFixed(1)})`
+                );
+              })(itemKey, oldX, oldY, x, y);
+            }
+          }
+        }
       }
     })
     .onEnd(() => {
@@ -292,8 +466,12 @@ export const PanWithLongPress = (
       if (deleteComponentPosition?.value && deleteItem) {
         const deletePos = deleteComponentPosition.value;
 
+        // Get actual item dimensions
+        const actualItemWidth = p.width?.value || itemWidth;
+        const actualItemHeight = p.height?.value || itemHeight;
+
         // Add tolerance/padding to make it easier to hit (20% of item size)
-        const tolerance = Math.min(itemWidth, itemHeight) * 0.2;
+        const tolerance = Math.min(actualItemWidth, actualItemHeight) * 0.2;
         const expandedDeleteX = deletePos.x - tolerance;
         const expandedDeleteY = deletePos.y - tolerance;
         const expandedDeleteWidth = deletePos.width + tolerance * 2;
@@ -302,9 +480,9 @@ export const PanWithLongPress = (
         // Check if item bounding box overlaps with expanded delete component bounds
         // This is more forgiving than checking just the center point
         const itemLeft = p.x.value;
-        const itemRight = p.x.value + itemWidth;
+        const itemRight = p.x.value + actualItemWidth;
         const itemTop = p.y.value;
-        const itemBottom = p.y.value + itemHeight;
+        const itemBottom = p.y.value + actualItemHeight;
 
         // Bounding box intersection check
         const overlaps =
@@ -326,15 +504,65 @@ export const PanWithLongPress = (
 
       // Normal drop - return to grid position
       const idx = getIndexOfKey(key);
-      const { x, y } = indexToXY({
-        index: idx,
-        itemWidth,
-        itemHeight,
-        dynamicNumColumns,
-        containerPadding,
-        gap,
-      });
-      const scale = Math.min(itemWidth, itemHeight) / 200; // 100px baseline
+
+      let x: number, y: number;
+      // Use flow layout when numColumns is not provided
+      if (!numColumns) {
+        // Use flow layout - works with both uniform and variable-sized items
+        const result = indexToXYFlow({
+          index: idx,
+          order,
+          positions,
+          containerWidth: contentW,
+          containerPadding,
+          gap,
+          defaultWidth: itemWidth,
+          defaultHeight: itemHeight,
+        });
+        x = result.x;
+        y = result.y;
+      } else {
+        // Use grid layout when numColumns is specified
+        const hasCustomDimensions = order.value.some((k) => {
+          const pos = positions[k];
+          if (!pos) return false;
+          return (
+            Math.abs((pos.width?.value || itemWidth) - itemWidth) > 1 ||
+            Math.abs((pos.height?.value || itemHeight) - itemHeight) > 1
+          );
+        });
+
+        if (hasCustomDimensions) {
+          // Use dynamic grid positioning when numColumns is specified
+          const result = indexToXYDynamic({
+            index: idx,
+            order,
+            positions,
+            dynamicNumColumns,
+            containerPadding,
+            gap,
+            defaultWidth: itemWidth,
+            defaultHeight: itemHeight,
+          });
+          x = result.x;
+          y = result.y;
+        } else {
+          // Use uniform grid
+          const result = indexToXY({
+            index: idx,
+            itemWidth,
+            itemHeight,
+            dynamicNumColumns,
+            containerPadding,
+            gap,
+          });
+          x = result.x;
+          y = result.y;
+        }
+      }
+      const actualItemWidth = p.width?.value || itemWidth;
+      const actualItemHeight = p.height?.value || itemHeight;
+      const scale = Math.min(actualItemWidth, actualItemHeight) / 200; // 100px baseline
 
       const damping = 18 * scale;
       const stiffness = 240 * scale;
